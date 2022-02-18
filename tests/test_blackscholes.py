@@ -1,5 +1,6 @@
 """blackscholes.cairo test file."""
 import os
+from typing import Type, Tuple
 
 import pytest
 from starkware.starknet.definitions.error_codes import StarknetErrorCode
@@ -14,10 +15,10 @@ CONTRACT_FILE = os.path.join("contracts", "blackscholes.cairo")
 
 # Util functions
 
-def to_split_uint(a: int) -> tuple:
+def to_split_uint(a: int) -> Tuple:
     return (a & ((1 << 128) - 1), a >> 128)
 
-def to_uint(a: tuple) -> int:
+def to_uint(a: Tuple) -> int:
     return a[0] + (a[1] << 128)
 
 async def assert_revert(expression, expected_err_msg=None):
@@ -31,24 +32,25 @@ async def assert_revert(expression, expected_err_msg=None):
         assert error['code'] == StarknetErrorCode.TRANSACTION_FAILED
 
 
-# The testing library uses python's asyncio. So the following
-# decorator and the ``async`` keyword are needed.
+# Constants
+
+CALLER = 1234
+ZERO = to_split_uint(0)
+TWO = to_split_uint(2)
+FIVE = to_split_uint(5)
+
+
+# Fixtures
+
+@pytest.fixture
+async def starknet() -> Type[Starknet]:
+    return await Starknet.empty()
+
+@pytest.fixture
+async def contract(starknet: Type[Starknet]) -> Type[StarknetContract]:
+    return await starknet.deploy(source=CONTRACT_FILE)
+
 @pytest.mark.asyncio
-async def test_increase_balance():
-    """Test increase_balance method."""
-    # Create a new Starknet class that simulates the StarkNet
-    # system.
-    starknet = await Starknet.empty()
-
-    # Deploy the contract.
-    contract = await starknet.deploy(
-        source=CONTRACT_FILE,
-    )
-
-    # Invoke increase_balance() twice.
-    await contract.increase_balance(amount=10).invoke()
-    await contract.increase_balance(amount=20).invoke()
-
-    # Check the result of get_balance().
-    execution_info = await contract.get_balance().call()
-    assert execution_info.result == (30,)
+async def test_set_value_conditional(contract: Type[StarknetContract]):
+    """Test set_value_conditional method."""
+    await contract.set_value_conditional(lhs=TWO, rhs=FIVE, res_if_true=ZERO, res_if_false=TWO).call()
